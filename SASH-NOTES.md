@@ -467,3 +467,78 @@ repo (paths relative to `~/Projects/forks/fpd-js`).
 4. fabric.js 1.6.3 → 5.3.0 is a much larger compatibility gap than the FPD wrapper
    surface suggests (§6, coordinate-system row). Task 2's rendering-parity test plan
    should include actual pixel/visual regression, not just JSON-schema diffing.
+
+## 8. Task 2 build: `webpack.sash.config.js` / `dist-sash/`
+
+- **Entry confirmed**: `src/classes/FancyProductDesigner.js`, same file the gulp
+  default task's `buildJS` step feeds into webpack-stream (`gulpfile.js:11-49`). No
+  `src/index.js` exists in this repo (the brief's illustrative snippet assumed one) —
+  don't create one, point straight at the class file like `gulpfile.js` does.
+- **One-shot build**: `npx webpack -c webpack.sash.config.js` (NOT `npm run build`,
+  which is the watch task documented as broken for CI in §0). Output:
+  `dist-sash/fpd.sash.js` (787KB minified, `mode: 'production'` already runs Terser —
+  no separate `.min.js` needed) + `dist-sash/fpd.sash.js.LICENSE.txt` (webpack's
+  auto-extracted license banner for `fabric`/`webfontloader`, harmless, vendored
+  alongside).
+- **Global export**: UMD wrapper assigns `window.FPD = <the default export>`, i.e.
+  `window.FPD` **is** the `FancyProductDesigner` class itself (`new FPD(elem, opts)`
+  works directly), not `window.FPD.default`. Achieved via
+  `output.library = { name: 'FPD', type: 'umd', export: 'default' }` — verified by
+  grepping the emitted file: UMD header is
+  `t.FPD=e():...t.FPD=e()` and the tail resolves to `n.default` (the class). Confirmed
+  by inspecting the built file directly (not by running it), see BUILD.md in pkg_sash
+  for the pointer Task 7 should use: `window.FPD`.
+- **fabric.js is now bundled INTO fpd.sash.js** (fabric 5.3.0 is an npm `dependency`
+  of this repo, statically imported by the FPD source, unlike the legacy engine7
+  bundle which loads `fabric.js` as a separate WAM asset). Do not register a
+  standalone fabric asset for the modern preset — it would be dead weight and could
+  create a duplicate-fabric-on-page conflict with the legacy preset if both ever
+  load on the same page.
+- **Stripped modules** (webpack `resolve.alias` → `src/sash-stub.js`, a single
+  `export default class {}` — satisfies every call site since all are `new X(...)`):
+  - `src/classes/PricingRules.js` — instantiated unconditionally at construction
+    (`FancyProductDesigner.js:354`, `this.pricingRulesInstance = new PricingRules(this)`)
+    but its result is never read anywhere else in `src/` (grepped
+    `pricingRulesInstance`, one hit total). Sash computes pricing server-side in PHP,
+    not via FPD's own `Options.js` price-rule fields, so this is genuinely dead
+    weight for Sash, not a functional loss.
+  - `src/ui/controller/modules/FacebookImages.js`,
+    `src/ui/controller/modules/InstagramImages.js`,
+    `src/ui/controller/modules/PixabayImages.js` — these are the "POD integrations"
+    (third-party image-source pickers) referenced in the task brief. All three are
+    statically imported by `src/ui/controller/modules/Images.js:3-5` but only
+    instantiated if `mainOptions.facebookAppId` / `.instagramClientId` /
+    `.pixabayApiKey` is non-empty (`Images.js:111-141`) — Sash's config never sets
+    these, so the real classes are unreachable code, safe to alias out. Their sibling
+    `src/ui/view/modules/{Facebook,Instagram,Pixabay}Images.js` view files are pulled
+    in only via `import` statements *inside* the aliased-out controller files, so
+    webpack never even resolves them once the controller module is replaced by the
+    stub — no separate alias needed for the view half.
+  - **Not stripped, left in**: everything else (Uploads, QRCode, TextToImage, Designs,
+    Layers, SaveLoad, TextLayers, Layouts, NamesNumbers, Products, Text, Images) —
+    these are all reachable via `Mainbar.availableModules`
+    (`src/ui/controller/Mainbar.js:9-19`) with no config gate, so Sash's designer UI
+    depends on them; stripping would break the editor, not just trim bytes.
+  - Net effect: 769 KiB (webpack-reported gzip-eligible asset size) vs. the
+    unmodified gulp build's 789 KB minified (`dist/js/FancyProductDesigner.min.js`)
+    — a modest reduction; the bulk of the bundle is fabric.js itself (992 KiB
+    unminified per the webpack module breakdown), not the stripped modules. Stripping
+    here is confirmed a minor optimization, not a major one — matches the task
+    brief's framing ("stripping is an optimization, not a gate").
+- **CSS**: not built by `webpack.sash.config.js` (no CSS entry point wired into it;
+  the `less`/`html` loader rules exist only because webpack needs them to parse the
+  `.less`/`.html` imports FPD's JS pulls in via `style-loader`, they don't emit a
+  separate CSS asset for this config). The actual CSS ships from the existing gulp
+  pipeline's combined output, `dist/css/FancyProductDesigner.min.css` (vendor.css +
+  FancyProductDesigner.css concatenated, `gulpfile.js:60-91` `combineCSS`), copied
+  verbatim to `dist-sash/fpd.sash.css`. That CSS references `fonts/FontFPD.*` via
+  relative `url(...)`, so `dist/css/fonts/*` must ship alongside it as a sibling
+  `fonts/` directory wherever `fpd.sash.css` is served from — copied to
+  `dist-sash/fonts/` here, and from there to
+  `com_sash/media/lib/designer/fonts/` in pkg_sash (see that repo's BUILD.md).
+- **Rebuild procedure**: `npx gulp` (regenerates `dist/css/FancyProductDesigner.min.css`
+  if CSS source changed) then `npx webpack -c webpack.sash.config.js` (regenerates
+  `dist-sash/fpd.sash.js`), then re-copy `dist/css/FancyProductDesigner.min.css` →
+  `dist-sash/fpd.sash.css` and `dist/css/fonts/*` → `dist-sash/fonts/` by hand (no
+  single combined task wires these two pipelines together yet — a future
+  improvement would be a `dist-sash` gulp target, out of scope for Task 2).
