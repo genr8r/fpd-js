@@ -444,6 +444,48 @@ repo (paths relative to `~/Projects/forks/fpd-js`).
 - `notes` (admin annotation, always empty in the sampled golden master, but preserve
   in case other designs populate it)
 
+### Legacy `rekeyDeprecatedKeys` (one-way, load-time only)
+
+v3's engine7 loader (`com_sash/media/lib/engine7/js/FancyProductDesigner.js:915-950`,
+`FPDUtil.rekeyDeprecatedKeys`) silently migrates a further 7 deprecated parameter
+names to their "FPD 4.0.0+" replacements **on every load**, independently of anything
+else in this document's §6 table. This table was compiled against the golden masters
+as stored (i.e. post-migration), so none of these rows appeared above — they are
+listed here separately because the v3→v6 load adapter (Task 5) is now the only code
+that will ever apply this migration again, since v3's own runtime is being retired.
+
+| v3 deprecated name | replacement | v6 source |
+|---|---|---|
+| `x` | `left` | `FancyProductDesigner.js:915-950` (key list at `:917-925`) |
+| `y` | `top` | `FancyProductDesigner.js:915-950` |
+| `degree` | `angle` | `FancyProductDesigner.js:915-950` |
+| `currentColor` | `fill` | `FancyProductDesigner.js:915-950` — same target as the already-migrated §6 `currentColor`/`fill` row above; this is v3's own historical rekey, not a v3→v6 engine-swap concern |
+| `filters` | `availableFilters` | `FancyProductDesigner.js:915-950` |
+| `textSize` | `fontSize` | `FancyProductDesigner.js:915-950` |
+| `font` | `fontFamily` | `FancyProductDesigner.js:915-950` |
+| `scale` | `scaleX`, `scaleY` | `FancyProductDesigner.js:915-950` — guard quirk: v3's own guard is `!object.hasOwnProperty(replace)` where `replace` is the array `['scaleX','scaleY']`; JS coerces that to the string `"scaleX,scaleY"`, which is never a real own key, so this branch always fires whenever `scale` is present, even if `scaleX`/`scaleY` already exist. The load adapter reproduces this exact quirk rather than "fixing" it. |
+
+Two things matter for later tasks:
+
+(a) **These fire only on pre-"FPD 4.0.0" designs that were never reopened after that
+migration shipped.** All 33 golden masters sampled for this survey are already
+migrated (zero hits for any of the 7 old key names anywhere in the corpus) — so this
+path is verified only by synthetic tests, never against real stored data. If Sash's
+`#__sash_designs` table has any surviving rows old enough to predate FPD 4.0.0 and
+that were saved once and never reopened/resaved since, they are the only place this
+would ever be exercised for real.
+
+(b) **This rekey is one-way, load-time-only — the reverse (v6→v3) adapter (Task 6)
+must NOT invert it.** A saved v3 design uses `left`/`top`/`angle`/`fill`/
+`availableFilters`/`fontSize`/`fontFamily`/`scaleX`+`scaleY`, never the deprecated
+names on the left of the table above — `rekeyDeprecatedKeys` is engine7's own
+load-time normalization, not a storage format. Task 6 should treat those as the only
+valid v3 output keys. Consequence: the v3→v6→v3 round-trip law (that Task 6 will want
+to assert) only holds for **already-migrated** inputs — an old, never-reopened,
+pre-4.0.0 row will legitimately come back out of the round trip using the modern key
+names, not its original deprecated ones, and that is correct behavior, not a
+round-trip bug.
+
 ## 7. Concerns / open questions for later tasks
 
 1. **`fill` type is not always a string.** `Canvas.addElement` explicitly guards
