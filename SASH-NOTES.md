@@ -215,6 +215,158 @@ URL string** (`data:image/png;base64,...` or per `options.format`).
   generation but confirms there is no native "export to PDF" method; that stays a
   server-side concern (as under v3/engine7 today).
 
+## 4a. Interactive element APIs (add/edit/remove — distinct from the JSON-load path)
+
+Everything in §2/§3 loads a *pre-built* product/design JSON. The customer-facing "add
+your own image/text, then tweak it" UI glue uses a **different, lower-level set of
+APIs** than `loadProduct`/`addElements`, even though they end up calling the same
+`fabric.Canvas.prototype.addElement` under the hood. This section documents those APIs
+specifically, since Task 3+ (the interactive editor UI) needs them, not the bulk loader.
+
+### 4a.1 Add a custom image — `FancyProductDesigner.addCustomImage`
+
+`FancyProductDesigner.addCustomImage(source, title, options = {}, viewIndex)`
+(`src/classes/FancyProductDesigner.js:1866-1911`) is a **public instance-level
+convenience wrapper**, intended for a caller's own upload UI ("This method should be
+used if you are using an own image uploader for the product designer",
+doc comment at `:1858`).
+
+- **Signature**: `addCustomImage(source, title, options = {}, viewIndex)`
+  (`:1866`). `viewIndex` defaults to `this.currentViewIndex` if omitted (`:1867`).
+- **Async, no return value, no callback param.** It creates a plain `Image()`,
+  sets `crossOrigin = "anonymous"`, and does all the real work in `image.onload`
+  (`:1876-1904`) — dimension validation via `checkImageDimensions`
+  (`:1883-1886`, aborts silently — just toggles the spinner off and `return false`
+  from inside the handler, which is not the outer function's return value — **there
+  is no way to `await` or get a success/failure value back from this call**; the
+  caller must listen for the `elementAdd` (success) event or the absence of a
+  `Snackbar`/console error (failure) instead). `image.onerror` shows a `Snackbar`
+  ("Image could not be loaded!", `:1906-1910`) on failure.
+  - Automatically merges `this.currentViewInstance.options.customImageParameters`
+    (`Options.js:1705-1761`, e.g. `minW/minH/maxW/maxH/minDPI/maxSize/autoCenter`)
+    with `{isCustom: true, isCustomImage: true}` and then the caller's `options`
+    (`:1888-1899`), before calling
+    `this.viewInstances[viewIndex].fabricCanvas.addElement("image", source, title,
+    imageParams, viewIndex)` (`:1901`) — same underlying `addElement` as §2.3, so the
+    same `beforeElementAdd`/`elementAdd` events fire (§5.1/§5.2).
+  - SVG sources get `colors: true` auto-enabled if `customImageParameters.colors` isn't
+    already set (`:1893-1896`), to force-enable the color wheel for uploaded SVGs.
+- Sibling/lower-level helpers used internally, in case Task 3 needs finer control:
+  `_addCanvasImage(source, title, options, viewIndex, isRemoteImage)`
+  (`:1928-1941`, underscore-prefixed = "internal", not part of the public API contract)
+  and `addCanvasDesign(source, title, params = {})` (`:1985-2028`, for adding a design
+  from the built-in designs library, supports `params.relatedViewImages` to push the
+  same design into other views simultaneously).
+
+### 4a.2 Add custom text — **no instance-level equivalent; use `fabricCanvas.addElement('text', ...)` directly**
+
+There is **no `addCustomText`/`FancyProductDesigner.addText`-style public wrapper in
+v6**, confirmed by grepping the entire `src/` tree for `addCustomText` and
+`addElement("text"` /`addElement('text'` (only two hits total, both internal — see
+below). This is a genuine asymmetry vs. images: image uploads get a documented public
+convenience method (§4a.1); custom text does not.
+
+The built-in Text module (the reference implementation Task 3's UI glue should mirror)
+adds text by calling the **same view/canvas-level `addElement` used for JSON loading**,
+directly from UI code:
+
+```js
+fpdInstance.currentViewInstance.fabricCanvas.addElement(
+    'text', text, text, textParams
+);
+```
+
+(`src/ui/controller/modules/Text.js:41-46`, the "add typed text" button handler; a
+second, near-identical call site at `:158-163` handles clicking a text-template item).
+`textParams` is built by merging `currentViewInstance.options.customTextParameters`
+(`Options.js:1769-1772`, just `{autoCenter: true, copyable: true}` by default) with
+`{textBox, resizable: true, isCustom: true, _addToUZ: ..., _calcWidth: true}`
+(`Text.js:30-39`). **Task 3's interactive "add text" feature should call
+`viewInstance.fabricCanvas.addElement('text', initialText, initialText, mergedParams)`
+directly** — there is no higher-level method to call instead. This is
+`fabric.Canvas.prototype.addElement` from §2.3/§3 (`fabricjs/Canvas.js:617`), so it is
+subject to the same `beforeElementAdd`/`elementAdd` event pair and the same
+serial-async caveat noted for `addElements` (though a single `addElement` call
+resolves via one `elementAdd` event, not a chain).
+
+### 4a.3 Edit an existing element — `fabric.Canvas.prototype.setElementOptions`
+
+`fabric.Canvas.prototype.setElementOptions(parameters, element)`
+(`src/fabricjs/Canvas.js:1226-1659`) is **the** generic "modify an element's
+properties" API — this is what the toolbar UI calls for every property change (color,
+text content, font size, position, curve, shadow, filter, z-order, lock state, etc.),
+and it is the API Task 3's edit UI should call too, rather than mutating fabric
+properties directly.
+
+- **Signature**: `setElementOptions(parameters, element)` (`:1226`). `element` is
+  optional — defaults to `this.getActiveObject()` (the current selection) if omitted
+  (`:1227`); may be passed as a fabric object OR a title string, resolved via
+  `getElementByTitle` (`:1232-1234`, same title-lookup as §6's `title` row).
+- **Synchronous.** Mutates the element in place and calls `this.renderAll()`
+  (`:1633`) before returning; no callback/promise.
+- Notable per-field behaviors relevant to a customer-facing editor:
+  - **Set text content**: `parameters.text` (string) — normalized (strips
+    `<`/`>`, `Canvas.js:1432-1434`), truncated to `element.maxLength`/`maxLines` if set
+    (`:1436-1447`), case-transformed per `element.textTransform`
+    (`:1449-1453`), curved-text newline-stripped (`:1455-1458`) — **all before** the
+    generic `element.setOptions(parameters)` call at `:1515` actually applies it.
+  - **Set fill/color**: `parameters.fill` (or `parameters.svgFill` for SVG groups,
+    checked first) — triggers `element.changeColor(fill)` (`Canvas.js:1559-1563`,
+    delegates to `fabric.Object.prototype.changeColor`, `fabricjs/Element.js:380-439`,
+    §6's `currentColor`/`fill` row). Passing `undefined` for both is a no-op (guarded
+    by `parameters.fill !== undefined || parameters.svgFill !== undefined`, `:1559`).
+  - **Set filter**: `parameters.filter` (string filter name) — resolves via
+    `getFilter(parameters.filter)` and reapplies `element.filters`
+    (`Canvas.js:1546-1556`); falsy `parameters.filter` clears filters.
+  - **Set z-order**: `parameters.z >= 0` calls `element.moveTo(parameters.z)`
+    (`Canvas.js:1572-1575`); `z: -1`-style "append to top" is only meaningful at
+    `addElement` time (§6), not via `setElementOptions`.
+  - Everything not special-cased above (position, scale, angle, opacity, locked,
+    stroke, etc.) is applied generically via `element.setOptions(parameters)`
+    (`Canvas.js:1515`) — a bulk property setter supplied by the underlying **fabric.js
+    5.3.0** dependency itself (not FPD's own code; not found anywhere under `src/`),
+    functionally equivalent to fabric's standard `.set(object)`.
+- **Fires `elementModify` synchronously** at the end
+  (`Canvas.js:1635-1643`, `this.fire("elementModify", {element, options: parameters})`
+  — this is the **canvas-level** fabric event (§5.2), which `FancyProductDesigner`'s
+  `addView` wiring re-broadcasts as the **instance-level** `elementModify`
+  `CustomEvent` (§5.1, `FancyProductDesigner.js:1178-1199`) — so subscribing at either
+  level works for this one, but the canvas-level fire is the actual source of truth.
+
+Lower-level primitive used directly by `setElementOptions` (and also independently
+callable on a fabric object if finer control is needed):
+`fabric.Object.prototype.changeColor(colorData, colorLinking = true)`
+(`fabricjs/Element.js:380-439`) — see §6 for its text/image/svg-group branching logic.
+
+### 4a.4 Remove an element — `fabric.Canvas.prototype.removeElement`
+
+`fabric.Canvas.prototype.removeElement(element)` (`src/fabricjs/Canvas.js:1177-1197`).
+
+- **Signature**: `removeElement(element)` — `element` may be a fabric object OR a
+  title string, resolved via `getElementByTitle` (`:1178-1180`, same convention as
+  `setElementOptions`).
+- **Synchronous.** Deselects first (`:1182`), toggles off the element's upload-zone
+  state if it has one (`:1184`), removes it from the fabric canvas (`this.remove(element)`,
+  `:1186`), then fires.
+- **Fires `elementRemove` synchronously** (`Canvas.js:1188-1196`,
+  `this.fire("elementRemove", {element})`) — again a canvas-level fabric event,
+  re-broadcast as the instance-level `elementRemove` `CustomEvent`
+  (`FancyProductDesigner.js:1038-1062`, §5.1), which also handles cleanup of the
+  element from `this.fixedElements` if it was a fixed layer (`:1040-1046`).
+- No confirmation dialog, no undo built into the method itself — relies on the
+  separate history stack (`history:append`/`history:undo`, §5.2) for undo support,
+  same as every other mutation.
+
+### 4a.5 Bonus: duplicate — `fabric.Canvas.prototype.duplicateElement`
+
+Not explicitly requested but directly adjacent and likely needed by the same editor
+UI: `fabric.Canvas.prototype.duplicateElement(element)` (`src/fabricjs/Canvas.js:1668-1679`)
+clones an element's `getElementJSON()` output, offsets `top`/`left` by `+30`/`+30`
+(`:1671-1672`), and re-adds it via the same `addElement` (`:1678`) — so it produces a
+new `elementAdd` event, not a distinct `elementDuplicate` event. Only enabled per-element
+via the `copyable` parameter (`Options.js:1180-1187`), not gated inside this method
+itself (the toolbar checks `copyable` before calling it).
+
 ## 5. Lifecycle / events
 
 Two distinct event systems exist in v6 — **conflating them will silently no-op**:
@@ -276,7 +428,7 @@ repo (paths relative to `~/Projects/forks/fpd-js`).
 | `basePrice`, `extraFees` | *(no v6 field — only `price` exists)* | v3 element parameters include `basePrice: 0` and `extraFees: 0` alongside `price` (v3 `FancyProductDesigner.js:2283-2284`). v6's `elementParameters` has only a single `price` field (`Options.js:1127-1132`). Confirmed zero hits for `basePrice`/`extraFees` in v6 `src/`. | `Options.js:1113-1410` (no matching keys) | If Sash's pricing logic reads `basePrice`/`extraFees` as separate line items (vs. `price` being pre-summed), that split is **lost** unless preserved via `__v3`. Needs a PHP-side pricing-logic read before Task 3 decides whether to fold these into `price` at import time or keep them stashed. |
 | `uploadZoneScaleMode` | `scaleMode` | **Rename** — v3's upload-zone-specific scale mode key becomes the general per-image `scaleMode` in v6 (applies to upload zones AND `resizeToW`/`resizeToH` resizing generally, not upload-zone-only). Same two values observed: `'fit'`/`'cover'`. | `Options.js:1640-1647` (`imageParameters.scaleMode: "fit"`); consumed at `fabricjs/Canvas.js:1263,1266,1300` | Golden master doesn't populate an upload zone in this sample (`uploadZone: false` throughout), so untested against real data here — flag for Task 2 to find a golden master WITH an upload zone element for a live comparison. |
 | `notes` | *(no v6 field)* | Free-text per-element notes field present on every element in the golden master (`163298.json:96` etc., always `""` in this sample). Zero hits for a `notes` property in v6 `src/`. | n/a | Likely an admin-only annotation field (never seen populated in this sample) — low risk, stash under `__v3.notes` if ever non-empty. |
-| `z` | `z` | No rename, same semantics (`-1` = append to top of stack; explicit non-negative = literal z-order). | `Options.js:1117-1123` (default `-1`) | Confirmed identical in both; golden master mixes `-1` (background) and explicit `1,3,4` (`163298.json:120,177,235,291`). |
+| `z` | `z` | No rename, same semantics (`-1` = append to top of stack; explicit non-negative = literal z-order). | `Options.js:1117-1123` (default `-1`) | Confirmed identical in both; golden master mixes `-1` (background) and explicit `1,3,4` (`163298.json:120,177,234,291`). |
 | `originX`/`originY` | `originX`/`originY` | No rename, same default (`"center"`/`"center"`), same fabric.js semantics in both (element's `left`/`top` describe the position of this origin point, not the top-left corner). | `Options.js:1396-1397` | v3 default is the same `'center'`/`'center'` (v3 `FancyProductDesigner.js:2265-2266`) — **coordinate origin is NOT a divergence for this pair of engines** (brief flagged it as an open question; confirmed non-issue since both are fabric.js-based with matching defaults). |
 | Coordinate system (canvas origin, units) | Same | Both v3 (engine7) and v6 are built on **fabric.js**, so canvas-space is identical: origin top-left of canvas, y-axis down, all values in CSS pixels at the view's `stageWidth`/`stageHeight`. | n/a | **However**: v3 bundles **fabric.js 1.6.3** (`com_sash/media/lib/engine7/js/fabric.js:4`, `var fabric = fabric \|\| { version: "1.6.3" }`) vs. v6's **fabric.js 5.3.0** (`package.json:54`). This is a 4-major-version jump in the underlying canvas library, not just FPD — expect internal API differences (filter API, `toObject`/serialization internals, group/path handling, event names) even where FPD's own wrapper methods have identical names. Flag as an architectural risk for Task 2's rendering-parity testing, independent of the FPD-level field mapping above. |
 | `fontSize` (units) | `fontSize` | No rename, no unit change. Both default to `18`, both are plain numbers in canvas px (fabric.js `Text`/`IText` semantics unchanged across versions for this property). | `Options.js:1592` (`fontSize: 18`); v3 `FancyProductDesigner.js:2388` (`fontSize: 18`) | Brief flagged "font size units" as an expected divergence — **confirmed non-issue**; no unit conversion needed. |
