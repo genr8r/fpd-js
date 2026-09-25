@@ -443,8 +443,8 @@ export default class ElementToolbar extends EventTarget {
 			});
 		});
 
-		//sash fork: workshop panel fields only report changes; the host applies them
-		const sashWorkshop = this.subPanel.querySelector(".fpd-panel-sash-workshop");
+		//sash fork: workshop fields (toolbar body) only report changes; the host applies them
+		const sashWorkshop = this.navElem.querySelector(".fpd-sash-workshop");
 		if (sashWorkshop) {
 			sashWorkshop.querySelectorAll("[data-sash-field]").forEach((field) => {
 				addEvents(field, "change", () => this.#emitSashWorkshopChange(field));
@@ -868,11 +868,10 @@ export default class ElementToolbar extends EventTarget {
 			}
 		});
 
-		//sash fork: workshop panel, only for elements the host declares eligible
+		//sash fork: workshop fields in the toolbar body, only for elements the host declares eligible
 		const wsOpts = this.fpdInstance.mainOptions.sashWorkshop;
 		const wsEligible = Boolean(wsOpts && typeof wsOpts.isEligible === "function" && wsOpts.isEligible(element));
-		this.#toggleNavItem("sash-workshop", wsEligible);
-		if (wsEligible) this.#fillSashWorkshop(element, wsOpts);
+		this.#toggleSashWorkshop(element, wsOpts, wsEligible);
 
 		//select first visible nav item
 		if (this.currentPlacement == "sidebar") {
@@ -902,11 +901,12 @@ export default class ElementToolbar extends EventTarget {
 		);
 	}
 
-	#fillSashWorkshop(element, wsOpts) {
-		const ws = this.subPanel.querySelector(".fpd-panel-sash-workshop");
+	#toggleSashWorkshop(element, wsOpts, eligible) {
+		const ws = this.navElem.querySelector(".fpd-sash-workshop");
 		if (!ws) return;
 		//a field still focused may hold an uncommitted edit for the PREVIOUS element; the
-		//refill below would overwrite it before its native blur. Blur it now, while
+		//refill below would overwrite it before its native blur, and hiding the section
+		//would drop the focus without a guaranteed change. Blur it now, while
 		//#sashWorkshopElement still names that element: the browser then fires its own
 		//change (only if the value really changed) exactly once, and no second native
 		//change follows the refill.
@@ -920,6 +920,8 @@ export default class ElementToolbar extends EventTarget {
 		) {
 			focused.blur();
 		}
+		toggleElemClasses(ws, ["fpd-hidden"], !eligible);
+		if (!eligible) return;
 		this.#sashWorkshopElement = element;
 		const vals = (typeof wsOpts.read === "function" && wsOpts.read(element)) || {};
 		const colors = Array.isArray(wsOpts.colors) ? wsOpts.colors : [];

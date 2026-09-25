@@ -10,11 +10,6 @@
 <div class="fpd-tools-nav fpd-scroll-area">
 
     <div class="fpd-primary-tools">
-        <!-- Sash fork: first in the nav so staff never scroll to reach Price. -->
-        <div class="fpd-tool-sash-workshop fpd-hidden" data-panel="sash-workshop">
-            <span class="fpd-icon-more"></span>
-            <span class="fpd-label" data-defaulttext="Workshop">toolbar.sash_workshop</span>
-        </div>
         <div class="fpd-tool-color" data-panel="color">
             <span class="fpd-current-fill"></span>
             <span class="fpd-label" data-defaulttext="Color">toolbar.color</span>
@@ -74,6 +69,20 @@
             <span class="fpd-label" data-defaulttext="Remove">toolbar.remove</span>
         </div>
     </div>
+
+    <!-- Sash fork: staff-only workshop fields, in the toolbar BODY below the v6 tools
+         (legacy v3 layout: font select, then Notes, then Price, always visible). Shown
+         only when the host passes the sashWorkshop option and its isEligible(element)
+         is true. The fork never writes these values; it dispatches sashWorkshopChange
+         and the host applies them. Not an fpd-tool-* item: it is no nav tab and the nav
+         click/reset code must not touch it. See SASH-NOTES.md §9. -->
+    <div class="fpd-sash-workshop fpd-hidden">
+        <select class="fpd-sash-font fpd-sash-text-only" data-sash-field="sash_font" aria-label="Font"></select>
+        <label class="fpd-sash-color"><span>Emb Color</span><select data-sash-field="sash_color"></select></label>
+        <label class="fpd-sash-color fpd-sash-text-only"><span>Stroke</span><select data-sash-field="sash_stroke"></select></label>
+        <label class="fpd-sash-notes"><textarea data-sash-field="notes" rows="3"></textarea><span>Notes</span></label>
+        <label class="fpd-sash-price"><input type="text" inputmode="decimal" data-sash-field="price" /><span>Price</span></label>
+    </div><!-- Sash Workshop -->
 
 </div>
 <div class="fpd-sub-panel">
@@ -543,17 +552,5 @@
 
         
     </div><!-- Advanced Editing -->
-
-    <!-- Sash fork: staff-only workshop fields. Shown only when the host passes the
-         sashWorkshop option and its isEligible(element) is true. The fork never writes
-         these values; it dispatches sashWorkshopChange and the host applies them.
-         See SASH-NOTES.md "Sash workshop toolbar panel". -->
-    <div class="fpd-panel-sash-workshop fpd-padding">
-        <label>Notes <textarea data-sash-field="notes" rows="3"></textarea></label>
-        <label>Price <input type="text" inputmode="decimal" data-sash-field="price" /></label>
-        <label>Emb Color <select data-sash-field="sash_color"></select></label>
-        <label class="fpd-sash-text-only">Font <select data-sash-field="sash_font"></select></label>
-        <label class="fpd-sash-text-only">Stroke <select data-sash-field="sash_stroke"></select></label>
-    </div><!-- Sash Workshop -->
 
 </div>

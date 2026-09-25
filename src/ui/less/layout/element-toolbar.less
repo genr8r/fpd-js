@@ -687,29 +687,78 @@ body[data-fpd-industry-type="engraving"]:not(.fpd-editor-mode)  {
 }
 
 
-// Sash fork: staff-only workshop panel (see SASH-NOTES.md "Sash workshop toolbar panel").
-fpd-element-toolbar .fpd-sub-panel > .fpd-panel-sash-workshop {
-    gap: 8px;
+// Sash fork: staff-only workshop fields in the toolbar BODY, below the v6 tools, laid out
+// like legacy's v3 toolbar (06-toolbar-text.png): full-width embroidery font select, then
+// the embroidery colour/stroke selects, then Notes and Price with their captions to the
+// right of the control. See SASH-NOTES.md §9.
+fpd-element-toolbar.fpd-smart > .fpd-tools-nav > div.fpd-sash-workshop {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: flex-end;
+    gap: 8px 10px;
+    margin: 0;
+    padding: 10px 15px 12px;
+    border-top: 1px solid var(--fpd-border-color);
+    font-size: 13px;
+    text-align: left;
+    white-space: normal;
+    cursor: default;
 
-    > * {
-        margin-bottom: 0;
+    select,
+    textarea,
+    input {
+        box-sizing: border-box;
+        margin: 0;
+        font-size: 13px;
     }
 
-    label {
+    > .fpd-sash-font {
+        flex: 1 0 100%;
+        width: 100%;
+    }
+
+    > .fpd-sash-color {
+        flex: 1 1 0;
+        min-width: 0;
         display: flex;
         flex-direction: column;
-        gap: 3px;
-        font-size: 12px;
+        gap: 2px;
+        font-size: 11px;
 
-        &.fpd-hidden {
-            display: none;
+        select {
+            width: 100%;
         }
     }
 
-    textarea,
-    input,
-    select {
-        width: 100%;
-        box-sizing: border-box;
+    > .fpd-sash-notes,
+    > .fpd-sash-price {
+        flex: 1 0 100%;
+        display: flex;
+        flex-direction: row;
+        align-items: flex-end;
+        gap: 6px;
+    }
+
+    > .fpd-sash-notes textarea {
+        flex: 0 1 220px;
+        min-width: 0;
+        resize: vertical;
+    }
+
+    > .fpd-sash-price input {
+        flex: 0 0 60px;
+        width: 60px;
+    }
+}
+
+// Image elements lay the v6 nav out as a row; wrap so the workshop section takes its own
+// full-width line below the tools instead of becoming a third column.
+fpd-element-toolbar.fpd-smart[data-element-type="image"] > .fpd-tools-nav {
+    flex-wrap: wrap;
+
+    > div.fpd-sash-workshop {
+        flex: 1 0 100%;
+        margin: 0;
+        overflow: visible;
     }
 }

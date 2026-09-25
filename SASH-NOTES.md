@@ -585,11 +585,11 @@ round-trip bug.
   single combined task wires these two pipelines together yet — a future
   improvement would be a `dist-sash` gulp target, out of scope for Task 2).
 
-## 9. Sash workshop toolbar panel (tags `sash-6.3.5-r4` .. `sash-6.3.5-r6`)
+## 9. Sash workshop toolbar fields (tags `sash-6.3.5-r4` .. `sash-6.3.5-r7`)
 
 Legacy (engine7/v3) staff edited a staff-added element's Notes, Price and embroidery
 colour/font/stroke from the floating element toolbar. v6's toolbar has no slot for
-those, so the fork adds ONE generic, host-driven panel. The fork knows only the option
+those, so the fork adds ONE generic, host-driven section. The fork knows only the option
 contract and the event below; it never writes `notes`/`price`/`sash_*` itself.
 
 **Option** (read at selection time in `ElementToolbar#update`, so a host may attach it
@@ -597,30 +597,43 @@ after construction via `fpd.mainOptions.sashWorkshop = {...}`):
 
 ```js
 sashWorkshop: {
-  isEligible(element) => boolean,           // show the panel for this element?
+  isEligible(element) => boolean,           // show the fields for this element?
   colors: Array<[key, label]>,              // Emb Color + Stroke options (Stroke gets a leading ['', 'None'])
   fonts:  Array<[key, label]>,              // Font options
   read(element) => { notes, price, sash_color, sash_font, sash_stroke },  // current values
 }
 ```
 
-Unset (the default) = the panel never shows; upstream behaviour is unchanged.
+Unset (the default) = the section never shows; upstream behaviour is unchanged.
 
-**Markup** (`src/ui/html/element-toolbar.html`): nav item
-`<div class="fpd-tool-sash-workshop fpd-hidden" data-panel="sash-workshop">`, the FIRST
-item of `.fpd-primary-tools` since r5 so staff never scroll the nav to reach Price (icon
-`fpd-icon-more`, an existing FontFPD glyph) and sub-panel `.fpd-panel-sash-workshop`
-(the same `fpd-panel-<name>` convention the nav click handler uses to open every
-sub-panel). The nav item is visible iff `mainOptions.sashWorkshop &&
-mainOptions.sashWorkshop.isEligible(element)`. Fields:
+**Markup** (`src/ui/html/element-toolbar.html`), since r7: an always-visible BODY
+section `<div class="fpd-sash-workshop fpd-hidden">`, the last child of `.fpd-tools-nav`
+(below the primary and secondary tool rows). It is shown iff `mainOptions.sashWorkshop &&
+mainOptions.sashWorkshop.isEligible(element)`; no click is needed. Its class does not
+start with `fpd-tool-`, so the nav click handler and `#reset` never treat it as a tool.
+This matches legacy's v3 toolbar (Brian, 2026-09-25, "match legacy layout"; benchmark
+`docs/evidence/2026-09-25-legacy-admin-benchmark/06-toolbar-text.png` in pkg_sash): the
+embroidery font select full width, then Notes and Price with their captions to the right
+of the control. r4..r6 used a "Workshop" nav tab (`data-panel="sash-workshop"`) opening a
+`.fpd-panel-sash-workshop` sub-panel; r7 removes both. The v6 nav itself is unchanged
+(no v6 panel reordered or hidden). Fields, in display order:
 
 | selector | control | notes |
 |---|---|---|
-| `[data-sash-field="notes"]` | `<textarea>` | |
-| `[data-sash-field="price"]` | `<input type="text" inputmode="decimal">` | text, so `$15`/`abc` reach the host's parser |
-| `[data-sash-field="sash_color"]` | `<select>` | options from `colors` (populated once) |
-| `[data-sash-field="sash_font"]` | `<select>` | text elements only; options from `fonts` |
-| `[data-sash-field="sash_stroke"]` | `<select>` | text elements only; `['', 'None']` + `colors` |
+| `[data-sash-field="sash_font"]` | `<select aria-label="Font">` | text elements only; options from `fonts`; full width, no caption (as legacy) |
+| `[data-sash-field="sash_color"]` | `<select>` captioned "Emb Color" | options from `colors` (populated once) |
+| `[data-sash-field="sash_stroke"]` | `<select>` captioned "Stroke" | text elements only; `['', 'None']` + `colors`; shares a row with Emb Color |
+| `[data-sash-field="notes"]` | `<textarea>` captioned "Notes" (right) | |
+| `[data-sash-field="price"]` | `<input type="text" inputmode="decimal">` captioned "Price" (right) | text, so `$15`/`abc` reach the host's parser |
+
+Remaining layout difference from legacy (accepted): legacy set the embroidery colour and
+stroke from its fill-colour swatch and stroke ("A") sub-panels. v6 has no equivalent
+panels that write `sash_color`/`sash_stroke`, so r7 shows them as two compact captioned
+selects ("Emb Color", "Stroke") in the body section between the font select and Notes.
+Also: while a v6 sub-panel (Color, Transform, ...) is open, the smart toolbar hides its
+whole nav, and the body section with it; "Back" shows it again. The section is styled for
+the smart (floating) toolbar placement only, which is what com_sash uses; the sidebar
+placement would stack it in the 80px nav column.
 
 **Event**: on a field's `change`, the fork dispatches on the FPD instance
 
@@ -639,11 +652,14 @@ selected another element (or cleared the selection) has already run, so
 while a field still has focus, the fork blurs that field BEFORE refilling (r6), so the
 browser's own `change` fires once, only if the value changed, and for the previous
 element; no second native `change` follows the refill (r5 emitted explicitly and the
-later native blur re-sent the refilled value for the new element). Hosts should still re-check eligibility on
-receipt (the element may have been removed meanwhile).
+later native blur re-sent the refilled value for the new element). Since r7 the same
+blur also runs when a NON-eligible element is selected, before the section is hidden, so
+hiding a focused field cannot drop its pending edit. Hosts should still re-check
+eligibility on receipt (the element may have been removed meanwhile).
 
-Host-owned nodes: the host may insert its own nodes inside the panel. com_sash inserts
-a `.sash-admin-price-error` message after the Price input on an unparseable price and
-removes it on the next valid price or when another element is selected.
+Host-owned nodes: the host may insert its own nodes inside the section. (com_sash no
+longer does: since its Task 9 an unparseable price is reported with legacy's plain
+`alert('Please enter a number')`, not an inline message.)
 
-Styles: `src/ui/less/layout/element-toolbar.less` (end of file, one block).
+Styles: `src/ui/less/layout/element-toolbar.less` (end of file: the section block, plus a
+`flex-wrap` rule so image elements, whose v6 nav is a row, put it on its own line).
