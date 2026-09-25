@@ -240,9 +240,10 @@ export default class UIManager extends EventTarget {
 
     updateToolbarWrapper() {
 
-        const presentToolbar = document.querySelector('fpd-element-toolbar');
-        if(presentToolbar)
-            presentToolbar.remove()
+        //remove only THIS instance's previous toolbar: a document-wide lookup removes
+        //another designer's live toolbar when two instances share the page
+        if(this.fpdInstance.toolbar)
+            this.fpdInstance.toolbar.container.remove()
 
         this.fpdInstance.toolbar = new ElementToolbar(this.fpdInstance);
         this.fpdInstance.translator.translateArea(this.fpdInstance.toolbar.container)
