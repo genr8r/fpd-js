@@ -585,7 +585,7 @@ round-trip bug.
   single combined task wires these two pipelines together yet — a future
   improvement would be a `dist-sash` gulp target, out of scope for Task 2).
 
-## 9. Sash workshop toolbar fields (tags `sash-6.3.5-r4` .. `sash-6.3.5-r9`)
+## 9. Sash workshop toolbar fields (tags `sash-6.3.5-r4` .. `sash-6.3.5-r10`)
 
 Legacy (engine7/v3) staff edited a staff-added element's Notes, Price and embroidery
 colour/font/stroke from the floating element toolbar. v6's toolbar has no slot for
@@ -604,13 +604,28 @@ sashWorkshop: {
   hideTools: string[],                      // optional (r8): v6 nav item names to hide
   hideControls: string[],                   // optional (r9): CSS selectors of sub-panel controls to hide
   showControls: string[],                   // optional (r9): CSS selectors of sub-panel controls to show
+  hideForAll: boolean,                      // optional (r10): hideTools/hideControls for EVERY element
 }
 ```
 
-Unset (the default) = the section never shows; upstream behaviour is unchanged.
+Unset (the default) = the section never shows and no v6 tool or control is hidden or
+shown. Two fork changes still apply even then, both layout-neutral: the smart toolbar
+lays out its children as a column and pins the × / Back tabs `position: absolute` (see
+"Sub-panels (r8)" below; with no section only one of nav / sub-panel is displayed at a
+time, so nothing moves), and v6's icon font is renamed and scoped (see "Icon font (r10)"
+below; same glyphs).
+
+`hideForAll` (optional, r10): when `true`, `hideTools` and `hideControls` apply to every
+selected element, eligible or not. `showControls` and the section itself stay
+eligible-only. Absent or `false` = eligible-only (r8/r9 behaviour). com_sash sets it
+(Ruling 16, whole-branch review): legacy staff never had v6's Reset, free Color picker or
+extra Format controls on ANY layer (e.g. the built-in "Sash" layer), and those can put
+the canvas out of step with the form and the work order. Customers are unaffected: they
+get no element toolbar at all.
 
 `hideTools` (optional, r8): v6 nav item names (the `fpd-tool-<name>` suffix, e.g.
-`'font-family'`, `'color'`) hidden while the selected element is eligible. Absent or empty
+`'font-family'`, `'color'`) hidden while the selected element is eligible (any element
+with `hideForAll`). Absent or empty
 = hide nothing (upstream nav). Applied at the end of `ElementToolbar#update` via
 `#toggleNavItem(name, false)`; since `#reset()` re-hides every nav item on each selection
 and `#update` re-shows the applicable ones, a non-eligible element gets them back with no
@@ -626,12 +641,12 @@ contract change was needed for them.
 `hideControls` / `showControls` (optional, r9): CSS selectors, matched with
 `querySelectorAll` inside the toolbar's `.fpd-sub-panel`, whose nodes get `fpd-hidden`
 added (`hideControls`) or removed (`showControls`) while the selected element is
-eligible. Absent or empty = upstream sub-panels. Applied at the end of `ElementToolbar#update`,
+eligible (`hideControls`: any element with `hideForAll`). Absent or empty = upstream sub-panels. Applied at the end of `ElementToolbar#update`,
 after v6 has made its own per-element decisions (e.g. `#togglePanelTool('transform',
 'flip', ...)`), and after `hideTools`. Unlike nav items, most sub-panel controls are
 never touched by `#reset()`, so the fork records each changed node with its previous
 `fpd-hidden` state and `#restoreSashControls()` puts it back (in reverse order) right
-after `#reset()` at the start of the next `#update`. A non-eligible element therefore
+after `#reset()` at the start of the next `#update`. An element they do not apply to therefore
 sees exactly v6's default. com_sash passes (Ruling 15, legacy parity):
 - `hideControls`: `.fpd-tool-text-bold`, `.fpd-tool-text-italic`,
   `.fpd-tool-text-underline`, `.fpd-tool-text-transform` (case), `.fpd-tool-text-letter-spacing`,
@@ -741,9 +756,30 @@ control writes `sash_*`/notes/price; only the workshop section does.
 | Advanced Editing, Remove Background, Remove | nav | none | not shown (not enabled for staff adds) |
 | Workshop Font / Emb Color / Stroke / Notes / Price | toolbar body section | sash_font, sash_color, sash_stroke, notes, price (html:25/97/184/75/79) | shown; the only controls writing `sash_*` (parity) |
 
-The built-in "Sash" layer (not eligible) gets every v6 default back (Color, Reset, Format
-controls, v6's own flip rule), verified by com_sash's e2e `Task 12: the Sash layer gets v6
-defaults back`.
+Since r10 (`hideForAll`, Ruling 16) the built-in "Sash" layer (not eligible) gets the same
+`hideTools` / `hideControls` as a staff add (no Reset, Duplicate, Color, Font Family or the
+hidden Format/Spacing controls) but not `showControls` (v6's own flip rule) and no section;
+its other v6 tools (Transform, Position) still show. Verified by com_sash's e2e
+`Task 12: the Sash layer gets the staff hides too, and the same state after a staff text`.
+
+### Icon font (r10)
+
+com_sash's legacy stylesheet (`media/css/compiled.css`, loaded on modern pages too, after
+`fpd.sash.css`) declares its own `@font-face { font-family: FontFPD }` with a different
+glyph map and `[class^=fpd-icon-]{font-family:FontFPD!important}`. Both families shared
+the name, so the later (legacy) font won and v6's codepoints drew legacy glyphs (v6's
+Position `\e926` rendered a bin; font, font-size, effects and remove-bg were also wrong).
+The fork does not touch the host's CSS. Instead `gulpfile.js` (`sashIconFont`, in
+`buildVendorCSS`) rewrites `src/vendor/FontFPD/style.css` at build time: the family is
+renamed `FontFPD6` (same `fonts/FontFPD.*` files), and every rule is prefixed with
+`:is(.fpd-container, .fpd-modal-internal, fpd-element-toolbar, fpd-main-bar,
+fpd-actions-bar, fpd-views-nav, fpd-views-grid, fpd-main-wrapper)`, so inside v6 elements
+its rules (specificity 0,2,0 / 0,2,1) outrank a host's unscoped `.fpd-icon-*` rules
+(0,1,0 / 0,1,1), `!important` included. `.fpd-icon-*` outside v6 elements is left to the
+host. `src/ui/less/modules/names-numbers.less` uses `FontFPD6` too. `style.css` itself is
+unchanged (upstream-mergeable). Since r10 `dist-sash/fpd.sash.css` is refreshed from
+`dist/css/FancyProductDesigner.min.css` on each build. Verified by com_sash's e2e
+`v6 toolbar icons use the fork's own icon font (FontFPD6), not legacy's FontFPD`.
 
 Styles: `src/ui/less/layout/element-toolbar.less` (end of file: the smart-toolbar column
 rule and × / Back pinning, then the section block). r7's image-only `flex-wrap` rule on the

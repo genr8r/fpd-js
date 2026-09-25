@@ -880,16 +880,23 @@ export default class ElementToolbar extends EventTarget {
 		//Family and Color panels, which bypass sash_font/sash_color). #reset() re-hid every
 		//nav item above and the checks re-showed the applicable ones, so a non-eligible
 		//element gets them back without any restore step here.
-		if (wsEligible && Array.isArray(wsOpts.hideTools)) {
+		//hideForAll (r10): when true, hideTools and hideControls apply to every selected
+		//element, not only eligible ones (com_sash: legacy staff never had v6's Reset, free
+		//Color picker or extra Format controls on ANY layer). showControls and the workshop
+		//fields stay eligible-only. Default false = eligible-only, as r8/r9.
+		const wsHide = wsEligible || Boolean(wsOpts && wsOpts.hideForAll === true);
+		if (wsHide && Array.isArray(wsOpts.hideTools)) {
 			wsOpts.hideTools.forEach((tool) => this.#toggleNavItem(tool, false));
 		}
 		//hideControls / showControls (r9): CSS selectors of sub-panel controls hidden or
 		//shown for eligible elements (com_sash: v6-only Format/Spacing controls legacy never
 		//had; legacy's flip for text). Applied after v6 decided this element's state and
-		//undone by #restoreSashControls at the next #update, so non-eligible elements get
-		//exactly v6's default.
-		if (wsEligible) {
+		//undone by #restoreSashControls at the next #update, so an element they do not
+		//apply to gets exactly v6's default.
+		if (wsHide) {
 			this.#applySashControls(wsOpts.hideControls, true);
+		}
+		if (wsEligible) {
 			this.#applySashControls(wsOpts.showControls, false);
 		}
 
