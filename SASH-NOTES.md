@@ -585,7 +585,7 @@ round-trip bug.
   single combined task wires these two pipelines together yet — a future
   improvement would be a `dist-sash` gulp target, out of scope for Task 2).
 
-## 9. Sash workshop toolbar fields (tags `sash-6.3.5-r4` .. `sash-6.3.5-r11`)
+## 9. Sash workshop toolbar fields (tags `sash-6.3.5-r4` .. `sash-6.3.5-r12`)
 
 Legacy (engine7/v3) staff edited a staff-added element's Notes, Price and embroidery
 colour/font/stroke from the floating element toolbar. v6's toolbar has no slot for
@@ -609,6 +609,9 @@ sashWorkshop: {
                                              // ['', strokeNoneLabel] option; default "None" (the fork
                                              // stays generic — it does not know com_sash wants "" to
                                              // match legacy's blank leading <option>)
+  keepForNonEligible: { [fpdType]: string[] }, // optional (r12): per element.getType() ('text',
+                                             // 'image'), hideTools entries NOT hidden for a
+                                             // non-eligible element; default {} (hide them all)
 }
 ```
 
@@ -765,6 +768,31 @@ Since r10 (`hideForAll`, Ruling 16) the built-in "Sash" layer (not eligible) get
 hidden Format/Spacing controls) but not `showControls` (v6's own flip rule) and no section;
 its other v6 tools (Transform, Position) still show. Verified by com_sash's e2e
 `Task 12: the Sash layer gets the staff hides too, and the same state after a staff text`.
+
+### Tools kept for non-eligible elements (r12, Task 14)
+
+`keepForNonEligible` (optional): an object keyed by fpd element type
+(`element.getType()`, i.e. `'text'` or `'image'`) whose values are `hideTools` names that
+are NOT hidden when the selected element is non-eligible (so they only reach it through
+`hideForAll`). Eligible elements ignore it: every `hideTools` entry is still hidden for
+them. It filters `hideTools` only; `hideControls`, `showControls` and the section are
+unaffected. Absent, empty, or no entry for the element's type = hide every `hideTools`
+entry (r10/r11 behaviour). Applied in the same `ElementToolbar#update` step as
+`hideTools`; since `#reset()` re-hides every nav item on each selection, no restore step
+is needed.
+
+com_sash passes `{ text: ['font-family', 'color'] }` (Brian, 2026-09-25): when staff
+select a customer's own text (a text element that is not a workshop-eligible staff add),
+v6's Font Family and Color come back, still subject to v6's own rules (Font Family needs
+`editable`, Color needs `colors`). Reset, Duplicate and the `hideControls` extras stay
+hidden; staff adds and non-text layers (e.g. the built-in "Sash" image layer) are
+unchanged. Note: com_sash's component-managed customer texts (`sash_text`,
+`sash_symbol_text`, `line*`) are loaded with all-false interaction params, so they are
+not selectable on the canvas and v6 would offer neither tool for them; the option only
+shows for non-eligible texts that are selectable and editable. Verified by com_sash's
+e2e `Task 14: staff selecting a customer text get v6 Font Family and Color back, nothing
+else` and `Task 14: Font Family and Color stay hidden for the staff text and the Sash
+layer, in any order`.
 
 ### Icon font (r10)
 

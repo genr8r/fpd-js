@@ -886,7 +886,15 @@ export default class ElementToolbar extends EventTarget {
 		//fields stay eligible-only. Default false = eligible-only, as r8/r9.
 		const wsHide = wsEligible || Boolean(wsOpts && wsOpts.hideForAll === true);
 		if (wsHide && Array.isArray(wsOpts.hideTools)) {
-			wsOpts.hideTools.forEach((tool) => this.#toggleNavItem(tool, false));
+			//keepForNonEligible (r12): per fpd element type (element.getType()), hideTools
+			//entries NOT hidden for a non-eligible element (com_sash: { text: ['font-family',
+			//'color'] }, staff get v6 Font Family and Color back on a customer's text).
+			//Absent = hide every hideTools entry, as r10/r11.
+			const keepMap = !wsEligible && wsOpts.keepForNonEligible;
+			const keep = keepMap && Array.isArray(keepMap[element.getType()]) ? keepMap[element.getType()] : [];
+			wsOpts.hideTools
+				.filter((tool) => !keep.includes(tool))
+				.forEach((tool) => this.#toggleNavItem(tool, false));
 		}
 		//hideControls / showControls (r9): CSS selectors of sub-panel controls hidden or
 		//shown for eligible elements (com_sash: v6-only Format/Spacing controls legacy never
