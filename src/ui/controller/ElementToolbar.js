@@ -23,6 +23,9 @@ export default class ElementToolbar extends EventTarget {
 	#colorWrapper;
 	//sash fork: the element the workshop fields were last filled for
 	#sashWorkshopElement = null;
+	//sash fork (r9): [node, hadFpdHidden] pairs changed by hideControls/showControls for
+	//the previous eligible element, restored at the start of the next #update
+	#sashControlRestore = [];
 
 	constructor(fpdInstance) {
 		super();
@@ -603,6 +606,7 @@ export default class ElementToolbar extends EventTarget {
 
 	#update(element) {
 		this.#reset();
+		this.#restoreSashControls();
 		removeElemClasses(this.container, ["fpd-type-image"]);
 
 		let colorPanel;
@@ -879,6 +883,15 @@ export default class ElementToolbar extends EventTarget {
 		if (wsEligible && Array.isArray(wsOpts.hideTools)) {
 			wsOpts.hideTools.forEach((tool) => this.#toggleNavItem(tool, false));
 		}
+		//hideControls / showControls (r9): CSS selectors of sub-panel controls hidden or
+		//shown for eligible elements (com_sash: v6-only Format/Spacing controls legacy never
+		//had; legacy's flip for text). Applied after v6 decided this element's state and
+		//undone by #restoreSashControls at the next #update, so non-eligible elements get
+		//exactly v6's default.
+		if (wsEligible) {
+			this.#applySashControls(wsOpts.hideControls, true);
+			this.#applySashControls(wsOpts.showControls, false);
+		}
 
 		//select first visible nav item
 		if (this.currentPlacement == "sidebar") {
@@ -1035,6 +1048,25 @@ export default class ElementToolbar extends EventTarget {
 		removeElemClasses(this.fpdInstance.container, ["fpd-toolbar-smart", "fpd-toolbar-sidebar"]);
 
 		addElemClasses(this.fpdInstance.container, ["fpd-toolbar-" + this.currentPlacement]);
+	}
+
+	#applySashControls(selectors, hide) {
+		if (!Array.isArray(selectors)) return;
+
+		selectors.forEach((selector) => {
+			this.subPanel.querySelectorAll(selector).forEach((node) => {
+				this.#sashControlRestore.push([node, node.classList.contains("fpd-hidden")]);
+				toggleElemClasses(node, ["fpd-hidden"], hide);
+			});
+		});
+	}
+
+	#restoreSashControls() {
+		//reverse order: a node matched twice ends in its original state
+		this.#sashControlRestore.reverse().forEach(([node, wasHidden]) => {
+			toggleElemClasses(node, ["fpd-hidden"], wasHidden);
+		});
+		this.#sashControlRestore = [];
 	}
 
 	#updateUIValue(tool, value) {

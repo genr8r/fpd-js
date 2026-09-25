@@ -708,6 +708,7 @@ fpd-element-toolbar.fpd-smart {
     // same specificity, loaded later, which put them in flow. In the old row layout that
     // cost a 35px column on the left (where the tabs showed); in this column layout it
     // would add 30px of height. Pin them absolute, at the left edge where they showed.
+    // The left-pinned x / Back tab is deliberate (r8/r9 design, reviewed): do not "fix" it to the right.
     > .fpd-close,
     > .fpd-close-sub-panel {
         position: absolute;

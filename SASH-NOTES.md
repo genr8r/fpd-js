@@ -585,7 +585,7 @@ round-trip bug.
   single combined task wires these two pipelines together yet — a future
   improvement would be a `dist-sash` gulp target, out of scope for Task 2).
 
-## 9. Sash workshop toolbar fields (tags `sash-6.3.5-r4` .. `sash-6.3.5-r8`)
+## 9. Sash workshop toolbar fields (tags `sash-6.3.5-r4` .. `sash-6.3.5-r9`)
 
 Legacy (engine7/v3) staff edited a staff-added element's Notes, Price and embroidery
 colour/font/stroke from the floating element toolbar. v6's toolbar has no slot for
@@ -601,7 +601,9 @@ sashWorkshop: {
   colors: Array<[key, label]>,              // Emb Color + Stroke options (Stroke gets a leading ['', 'None'])
   fonts:  Array<[key, label]>,              // Font options
   read(element) => { notes, price, sash_color, sash_font, sash_stroke },  // current values
-  hideTools: string[],                      // optional (r8): v6 nav panel names to hide
+  hideTools: string[],                      // optional (r8): v6 nav item names to hide
+  hideControls: string[],                   // optional (r9): CSS selectors of sub-panel controls to hide
+  showControls: string[],                   // optional (r9): CSS selectors of sub-panel controls to show
 }
 ```
 
@@ -616,7 +618,31 @@ restore step. com_sash passes `['font-family', 'color']`: v6's Font Family dropd
 and Color panel (free picker plus its Stroke and Shadow tabs) change the canvas without
 writing `sash_font`/`sash_color`/`sash_stroke`, so the cart work-order block could disagree
 with the sash. Legacy has exactly one font control (`sash_font`) and one colour control
-(`sash_color`), which the section's Font and Emb Color selects are.
+(`sash_color`), which the section's Font and Emb Color selects are. Since r9 com_sash
+also passes `'reset'` and `'duplicate'`: `hideTools` matches any `fpd-tool-<name>` nav
+item, including v6's action items with no `data-panel` (Reset, Duplicate, Remove), so no
+contract change was needed for them.
+
+`hideControls` / `showControls` (optional, r9): CSS selectors, matched with
+`querySelectorAll` inside the toolbar's `.fpd-sub-panel`, whose nodes get `fpd-hidden`
+added (`hideControls`) or removed (`showControls`) while the selected element is
+eligible. Absent or empty = upstream sub-panels. Applied at the end of `ElementToolbar#update`,
+after v6 has made its own per-element decisions (e.g. `#togglePanelTool('transform',
+'flip', ...)`), and after `hideTools`. Unlike nav items, most sub-panel controls are
+never touched by `#reset()`, so the fork records each changed node with its previous
+`fpd-hidden` state and `#restoreSashControls()` puts it back (in reverse order) right
+after `#reset()` at the start of the next `#update`. A non-eligible element therefore
+sees exactly v6's default. com_sash passes (Ruling 15, legacy parity):
+- `hideControls`: `.fpd-tool-text-bold`, `.fpd-tool-text-italic`,
+  `.fpd-tool-text-underline`, `.fpd-tool-text-transform` (case), `.fpd-tool-text-letter-spacing`,
+  `.fpd-tool-text-align [data-option="justify"]`. Legacy's text toolbar had none of them;
+  its text-align dropdown had left/centre/right only, which stay. Line Spacing (legacy
+  Line Height) stays. The now-empty `.fpd-tools-group` wrapper in Format is left as is
+  (no visible gap beyond its margin).
+- `showControls`: `.fpd-panel-transform .fpd-tool-flip`. Legacy's Position popover gave
+  text Flip Horizontal / Flip Vertical (engine7 `productdesigner.html:172-176`); v6 shows
+  its flip pair (in Transform, not Position) only for scalable images. Flip stays in
+  v6's Transform panel: moving it into Position would restructure v6's panels.
 
 **Markup** (`src/ui/html/element-toolbar.html`), since r7: an always-visible BODY
 section `<div class="fpd-sash-workshop fpd-hidden">`. r7 made it the last child of
@@ -682,6 +708,42 @@ eligibility on receipt (the element may have been removed meanwhile).
 Host-owned nodes: the host may insert its own nodes inside the section. (com_sash no
 longer does: since its Task 9 an unparseable price is reported with legacy's plain
 `alert('Please enter a number')`, not an inline message.)
+
+### Final control audit, staff text / staff image vs legacy (r9, Task 12)
+
+Legacy source: engine7 `html/productdesigner.html` and benchmarks
+`docs/evidence/2026-09-25-legacy-admin-benchmark/06-*.png`, `08-*.png` (pkg_sash). No v6
+control writes `sash_*`/notes/price; only the workshop section does.
+
+| control | modern location | legacy equivalent | final status (r9) |
+|---|---|---|---|
+| Edit Text textarea | nav Edit Text | Edit Text panel (html:67/218) | shown (parity) |
+| Font size (row box + Size & Spacing slider) | nav Size & Spacing | font size number (html:33-35) | shown (parity) |
+| Line Spacing | Size & Spacing | Line Height (html:37-39) | shown (parity) |
+| Letter Spacing | Size & Spacing | none | hidden for staff adds (`hideControls`) |
+| Bold / Italic / Underline | Format | none | hidden for staff adds (`hideControls`) |
+| Text Transform (case) | Format | none | hidden for staff adds (`hideControls`) |
+| Text Align left / centre / right | Format | text-align dropdown (html:44-58) | shown (parity) |
+| Text Align justify | Format | none (3 options) | hidden for staff adds (`hideControls`) |
+| Rotate | Transform | angle slider (html:141-145) | shown (parity) |
+| Scale X / Y | Transform (images only) | scaleX/scaleY (html:123-137), images | shown for images (parity); never for text |
+| Uniform-scaling lock | Transform | lockUniScaling toggle (html:130); markup present, not shown for staff text (08-text-transform.png) | not shown for staff text (v6 shows it only if `uniScalingUnlockable`) (parity) |
+| Flip Horizontal / Vertical | Transform | flip H/V in Position (html:172-176), text and image | shown for staff text (`showControls`) and images (v6); location differs (Transform, not Position) |
+| Align top/middle/bottom/left/centre/right | Position > Align | align buttons (html:153-171) | shown (parity) |
+| Move Up / Move Down | Position > Arrange | top-row icons (html:15-19) | shown (parity) |
+| Curved Text (+ radius, spacing, reverse) | nav Curved Text | curved panel (html:192-214) | shown (parity) |
+| Reset (element) | nav, action | none in the element toolbar | hidden for staff adds (`hideTools`) |
+| Duplicate | nav, action | none | hidden for staff adds (`hideTools`) |
+| Color panel (fill, Stroke tab, Shadow tab) | nav Color | fill panel with sash_color select only (html:86-104) | hidden for staff adds (`hideTools`, r8); workshop Emb Color / Stroke instead |
+| Font Family dropdown/panel | nav Font | sash_font select (html:25) | hidden for staff adds (`hideTools`, r8); workshop Font instead |
+| Filters | Advanced Editing (bitmaps with `advancedEditing` only) | Filters tab of the fill panel (html:90, 106-111); markup present, not shown for staff text | not shown for staff adds (v6 needs `advancedEditing`, which com_sash never sets) (parity) |
+| Patterns | Color panel, patterns only if `element.patterns` | Patterns tab (html:91, 114); markup present, not shown for staff text | not shown (no `patterns` on staff adds, and Color is hidden) (parity) |
+| Advanced Editing, Remove Background, Remove | nav | none | not shown (not enabled for staff adds) |
+| Workshop Font / Emb Color / Stroke / Notes / Price | toolbar body section | sash_font, sash_color, sash_stroke, notes, price (html:25/97/184/75/79) | shown; the only controls writing `sash_*` (parity) |
+
+The built-in "Sash" layer (not eligible) gets every v6 default back (Color, Reset, Format
+controls, v6's own flip rule), verified by com_sash's e2e `Task 12: the Sash layer gets v6
+defaults back`.
 
 Styles: `src/ui/less/layout/element-toolbar.less` (end of file: the smart-toolbar column
 rule and × / Back pinning, then the section block). r7's image-only `flex-wrap` rule on the
