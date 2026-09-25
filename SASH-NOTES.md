@@ -584,3 +584,51 @@ round-trip bug.
   `dist-sash/fpd.sash.css` and `dist/css/fonts/*` → `dist-sash/fonts/` by hand (no
   single combined task wires these two pipelines together yet — a future
   improvement would be a `dist-sash` gulp target, out of scope for Task 2).
+
+## 9. Sash workshop toolbar panel (tag `sash-6.3.5-r4`)
+
+Legacy (engine7/v3) staff edited a staff-added element's Notes, Price and embroidery
+colour/font/stroke from the floating element toolbar. v6's toolbar has no slot for
+those, so the fork adds ONE generic, host-driven panel. The fork knows only the option
+contract and the event below; it never writes `notes`/`price`/`sash_*` itself.
+
+**Option** (read at selection time in `ElementToolbar#update`, so a host may attach it
+after construction via `fpd.mainOptions.sashWorkshop = {...}`):
+
+```js
+sashWorkshop: {
+  isEligible(element) => boolean,           // show the panel for this element?
+  colors: Array<[key, label]>,              // Emb Color + Stroke options (Stroke gets a leading ['', 'None'])
+  fonts:  Array<[key, label]>,              // Font options
+  read(element) => { notes, price, sash_color, sash_font, sash_stroke },  // current values
+}
+```
+
+Unset (the default) = the panel never shows; upstream behaviour is unchanged.
+
+**Markup** (`src/ui/html/element-toolbar.html`): nav item
+`<div class="fpd-tool-sash-workshop fpd-hidden" data-panel="sash-workshop">` (icon
+`fpd-icon-more`, an existing FontFPD glyph) and sub-panel `.fpd-panel-sash-workshop`
+(the same `fpd-panel-<name>` convention the nav click handler uses to open every
+sub-panel). The nav item is visible iff `mainOptions.sashWorkshop &&
+mainOptions.sashWorkshop.isEligible(element)`. Fields:
+
+| selector | control | notes |
+|---|---|---|
+| `[data-sash-field="notes"]` | `<textarea>` | |
+| `[data-sash-field="price"]` | `<input type="text" inputmode="decimal">` | text, so `$15`/`abc` reach the host's parser |
+| `[data-sash-field="sash_color"]` | `<select>` | options from `colors` (populated once) |
+| `[data-sash-field="sash_font"]` | `<select>` | text elements only; options from `fonts` |
+| `[data-sash-field="sash_stroke"]` | `<select>` | text elements only; `['', 'None']` + `colors` |
+
+**Event**: on a field's `change`, the fork dispatches on the FPD instance
+
+```js
+new CustomEvent('sashWorkshopChange', { detail: { element, field, value } })
+```
+
+where `field` is one of `notes | price | sash_color | sash_font | sash_stroke`,
+`element` is `fpd.currentElement`, and `value` is the control's string value. The host
+applies the value (com_sash: `sash-admin.js` `onWorkshopChange`).
+
+Styles: `src/ui/less/layout/element-toolbar.less` (end of file, one block).

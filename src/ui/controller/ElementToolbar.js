@@ -441,6 +441,22 @@ export default class ElementToolbar extends EventTarget {
 			});
 		});
 
+		//sash fork: workshop panel fields only report changes; the host applies them
+		const sashWorkshop = this.subPanel.querySelector(".fpd-panel-sash-workshop");
+		if (sashWorkshop) {
+			sashWorkshop.querySelectorAll("[data-sash-field]").forEach((field) => {
+				addEvents(field, "change", () => {
+					const element = fpdInstance.currentElement;
+					if (!element) return;
+					fpdInstance.dispatchEvent(
+						new CustomEvent("sashWorkshopChange", {
+							detail: { element, field: field.dataset.sashField, value: field.value },
+						})
+					);
+				});
+			});
+		}
+
 		//nav item
 		addEvents(this.navElem.querySelectorAll("[class^=fpd-tool-]"), "click", (evt) => {
 			const navItem = evt.currentTarget;
@@ -858,6 +874,12 @@ export default class ElementToolbar extends EventTarget {
 			}
 		});
 
+		//sash fork: workshop panel, only for elements the host declares eligible
+		const wsOpts = this.fpdInstance.mainOptions.sashWorkshop;
+		const wsEligible = Boolean(wsOpts && typeof wsOpts.isEligible === "function" && wsOpts.isEligible(element));
+		this.#toggleNavItem("sash-workshop", wsEligible);
+		if (wsEligible) this.#fillSashWorkshop(element, wsOpts);
+
 		//select first visible nav item
 		if (this.currentPlacement == "sidebar") {
 			this.navElem.querySelector("[data-panel]:not(.fpd-hidden)").click();
@@ -872,6 +894,27 @@ export default class ElementToolbar extends EventTarget {
 
 		this.container.dataset.fabricType = element.type;
 		this.container.dataset.elementType = element.getType();
+	}
+
+	#fillSashWorkshop(element, wsOpts) {
+		const ws = this.subPanel.querySelector(".fpd-panel-sash-workshop");
+		if (!ws) return;
+		const vals = (typeof wsOpts.read === "function" && wsOpts.read(element)) || {};
+		const colors = Array.isArray(wsOpts.colors) ? wsOpts.colors : [];
+		const fonts = Array.isArray(wsOpts.fonts) ? wsOpts.fonts : [];
+		const fill = (select, pairs, value) => {
+			if (!select) return;
+			if (!select.options.length) {
+				pairs.forEach(([key, label]) => select.add(new Option(label, key)));
+			}
+			select.value = value ?? "";
+		};
+		fill(ws.querySelector('[data-sash-field="sash_color"]'), colors, vals.sash_color);
+		fill(ws.querySelector('[data-sash-field="sash_font"]'), fonts, vals.sash_font);
+		fill(ws.querySelector('[data-sash-field="sash_stroke"]'), [["", "None"], ...colors], vals.sash_stroke);
+		ws.querySelector('[data-sash-field="notes"]').value = vals.notes ?? "";
+		ws.querySelector('[data-sash-field="price"]').value = vals.price == null ? "" : String(vals.price);
+		toggleElemClasses(ws.querySelectorAll(".fpd-sash-text-only"), ["fpd-hidden"], element.getType() !== "text");
 	}
 
 	#updatePosition() {

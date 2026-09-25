@@ -52,6 +52,10 @@
             <span class="fpd-icon-effects"></span>
             <span class="fpd-label" data-defaulttext="Edit Image">toolbar.advanced_editing</span>
         </div>
+        <div class="fpd-tool-sash-workshop fpd-hidden" data-panel="sash-workshop">
+            <span class="fpd-icon-more"></span>
+            <span class="fpd-label" data-defaulttext="Workshop">toolbar.sash_workshop</span>
+        </div>
         <div class="fpd-tool-remove-bg">
             <span class="fpd-icon-remove-bg"></span>
             <span class="fpd-label" data-defaulttext="Remove Background">toolbar.remove_background</span>
@@ -538,5 +542,17 @@
 
         
     </div><!-- Advanced Editing -->
+
+    <!-- Sash fork: staff-only workshop fields. Shown only when the host passes the
+         sashWorkshop option and its isEligible(element) is true. The fork never writes
+         these values; it dispatches sashWorkshopChange and the host applies them.
+         See SASH-NOTES.md "Sash workshop toolbar panel". -->
+    <div class="fpd-panel-sash-workshop fpd-padding">
+        <label>Notes <textarea data-sash-field="notes" rows="3"></textarea></label>
+        <label>Price <input type="text" inputmode="decimal" data-sash-field="price" /></label>
+        <label>Emb Color <select data-sash-field="sash_color"></select></label>
+        <label class="fpd-sash-text-only">Font <select data-sash-field="sash_font"></select></label>
+        <label class="fpd-sash-text-only">Stroke <select data-sash-field="sash_stroke"></select></label>
+    </div><!-- Sash Workshop -->
 
 </div>

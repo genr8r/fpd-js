@@ -686,3 +686,30 @@ body[data-fpd-industry-type="engraving"]:not(.fpd-editor-mode)  {
 
 }
 
+
+// Sash fork: staff-only workshop panel (see SASH-NOTES.md "Sash workshop toolbar panel").
+fpd-element-toolbar .fpd-sub-panel > .fpd-panel-sash-workshop {
+    gap: 8px;
+
+    > * {
+        margin-bottom: 0;
+    }
+
+    label {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        font-size: 12px;
+
+        &.fpd-hidden {
+            display: none;
+        }
+    }
+
+    textarea,
+    input,
+    select {
+        width: 100%;
+        box-sizing: border-box;
+    }
+}
