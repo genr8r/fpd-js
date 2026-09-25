@@ -585,7 +585,7 @@ round-trip bug.
   single combined task wires these two pipelines together yet — a future
   improvement would be a `dist-sash` gulp target, out of scope for Task 2).
 
-## 9. Sash workshop toolbar fields (tags `sash-6.3.5-r4` .. `sash-6.3.5-r10`)
+## 9. Sash workshop toolbar fields (tags `sash-6.3.5-r4` .. `sash-6.3.5-r11`)
 
 Legacy (engine7/v3) staff edited a staff-added element's Notes, Price and embroidery
 colour/font/stroke from the floating element toolbar. v6's toolbar has no slot for
@@ -598,13 +598,17 @@ after construction via `fpd.mainOptions.sashWorkshop = {...}`):
 ```js
 sashWorkshop: {
   isEligible(element) => boolean,           // show the fields for this element?
-  colors: Array<[key, label]>,              // Emb Color + Stroke options (Stroke gets a leading ['', 'None'])
+  colors: Array<[key, label]>,              // Emb Color + Stroke options (Stroke gets a leading ['', strokeNoneLabel])
   fonts:  Array<[key, label]>,              // Font options
   read(element) => { notes, price, sash_color, sash_font, sash_stroke },  // current values
   hideTools: string[],                      // optional (r8): v6 nav item names to hide
   hideControls: string[],                   // optional (r9): CSS selectors of sub-panel controls to hide
   showControls: string[],                   // optional (r9): CSS selectors of sub-panel controls to show
   hideForAll: boolean,                      // optional (r10): hideTools/hideControls for EVERY element
+  strokeNoneLabel: string,                  // optional (r11): label for the Stroke select's leading
+                                             // ['', strokeNoneLabel] option; default "None" (the fork
+                                             // stays generic — it does not know com_sash wants "" to
+                                             // match legacy's blank leading <option>)
 }
 ```
 
@@ -676,7 +680,7 @@ r8 the host may hide some for eligible elements (`hideTools`). Fields, in displa
 |---|---|---|
 | `[data-sash-field="sash_font"]` | `<select aria-label="Font">` | text elements only; options from `fonts`; full width, no caption (as legacy) |
 | `[data-sash-field="sash_color"]` | `<select>` captioned "Emb Color" | options from `colors` (populated once) |
-| `[data-sash-field="sash_stroke"]` | `<select>` captioned "Stroke" | text elements only; `['', 'None']` + `colors`; shares a row with Emb Color |
+| `[data-sash-field="sash_stroke"]` | `<select>` captioned "Stroke" | text elements only; `['', strokeNoneLabel]` + `colors`; shares a row with Emb Color |
 | `[data-sash-field="notes"]` | `<textarea>` captioned "Notes" (right) | |
 | `[data-sash-field="price"]` | `<input type="text" inputmode="decimal">` captioned "Price" (right) | text, so `$15`/`abc` reach the host's parser |
 
@@ -784,3 +788,14 @@ unchanged (upstream-mergeable). Since r10 `dist-sash/fpd.sash.css` is refreshed 
 Styles: `src/ui/less/layout/element-toolbar.less` (end of file: the smart-toolbar column
 rule and × / Back pinning, then the section block). r7's image-only `flex-wrap` rule on the
 nav is gone: the section is no longer inside the nav.
+
+### Stroke leading option label (r11, Task 13 Ruling 17)
+
+Legacy's Stroke select (engine7 `productdesigner.html:185`) starts with a blank
+`<option value=""></option>` — empty value AND empty label, not a "None" placeholder. The
+fork previously hard-coded `[["", "None"], ...colors]` for the Stroke select's leading
+option; `#toggleSashWorkshop` now reads an optional `sashWorkshop.strokeNoneLabel` string
+and uses `[["", strokeNoneLabel], ...colors]`, defaulting to `"None"` when unset so the
+fork stays generic for any other host. com_sash (`sash-admin.js` `WORKSHOP_OPTIONS`) sets
+`strokeNoneLabel: ''` to match legacy exactly. Verified by com_sash's e2e `Emb Color and
+Stroke offer legacy's labelled colours in legacy order` (stroke option 0 is `['', '']`).

@@ -962,7 +962,8 @@ export default class ElementToolbar extends EventTarget {
 		};
 		fill(ws.querySelector('[data-sash-field="sash_color"]'), colors, vals.sash_color);
 		fill(ws.querySelector('[data-sash-field="sash_font"]'), fonts, vals.sash_font);
-		fill(ws.querySelector('[data-sash-field="sash_stroke"]'), [["", "None"], ...colors], vals.sash_stroke);
+		const strokeNoneLabel = typeof wsOpts.strokeNoneLabel === "string" ? wsOpts.strokeNoneLabel : "None";
+		fill(ws.querySelector('[data-sash-field="sash_stroke"]'), [["", strokeNoneLabel], ...colors], vals.sash_stroke);
 		ws.querySelector('[data-sash-field="notes"]').value = vals.notes ?? "";
 		ws.querySelector('[data-sash-field="price"]').value = vals.price == null ? "" : String(vals.price);
 		toggleElemClasses(ws.querySelectorAll(".fpd-sash-text-only"), ["fpd-hidden"], element.getType() !== "text");
