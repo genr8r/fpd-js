@@ -585,7 +585,7 @@ round-trip bug.
   single combined task wires these two pipelines together yet — a future
   improvement would be a `dist-sash` gulp target, out of scope for Task 2).
 
-## 9. Sash workshop toolbar fields (tags `sash-6.3.5-r4` .. `sash-6.3.5-r7`)
+## 9. Sash workshop toolbar fields (tags `sash-6.3.5-r4` .. `sash-6.3.5-r8`)
 
 Legacy (engine7/v3) staff edited a staff-added element's Notes, Price and embroidery
 colour/font/stroke from the floating element toolbar. v6's toolbar has no slot for
@@ -601,22 +601,35 @@ sashWorkshop: {
   colors: Array<[key, label]>,              // Emb Color + Stroke options (Stroke gets a leading ['', 'None'])
   fonts:  Array<[key, label]>,              // Font options
   read(element) => { notes, price, sash_color, sash_font, sash_stroke },  // current values
+  hideTools: string[],                      // optional (r8): v6 nav panel names to hide
 }
 ```
 
 Unset (the default) = the section never shows; upstream behaviour is unchanged.
 
+`hideTools` (optional, r8): v6 nav item names (the `fpd-tool-<name>` suffix, e.g.
+`'font-family'`, `'color'`) hidden while the selected element is eligible. Absent or empty
+= hide nothing (upstream nav). Applied at the end of `ElementToolbar#update` via
+`#toggleNavItem(name, false)`; since `#reset()` re-hides every nav item on each selection
+and `#update` re-shows the applicable ones, a non-eligible element gets them back with no
+restore step. com_sash passes `['font-family', 'color']`: v6's Font Family dropdown/panel
+and Color panel (free picker plus its Stroke and Shadow tabs) change the canvas without
+writing `sash_font`/`sash_color`/`sash_stroke`, so the cart work-order block could disagree
+with the sash. Legacy has exactly one font control (`sash_font`) and one colour control
+(`sash_color`), which the section's Font and Emb Color selects are.
+
 **Markup** (`src/ui/html/element-toolbar.html`), since r7: an always-visible BODY
-section `<div class="fpd-sash-workshop fpd-hidden">`, the last child of `.fpd-tools-nav`
-(below the primary and secondary tool rows). It is shown iff `mainOptions.sashWorkshop &&
+section `<div class="fpd-sash-workshop fpd-hidden">`. r7 made it the last child of
+`.fpd-tools-nav`; since r8 it is the toolbar's last child, a sibling AFTER `.fpd-tools-nav`
+and `.fpd-sub-panel`, looked up via `this.container`. It is shown iff `mainOptions.sashWorkshop &&
 mainOptions.sashWorkshop.isEligible(element)`; no click is needed. Its class does not
 start with `fpd-tool-`, so the nav click handler and `#reset` never treat it as a tool.
 This matches legacy's v3 toolbar (Brian, 2026-09-25, "match legacy layout"; benchmark
 `docs/evidence/2026-09-25-legacy-admin-benchmark/06-toolbar-text.png` in pkg_sash): the
 embroidery font select full width, then Notes and Price with their captions to the right
 of the control. r4..r6 used a "Workshop" nav tab (`data-panel="sash-workshop"`) opening a
-`.fpd-panel-sash-workshop` sub-panel; r7 removes both. The v6 nav itself is unchanged
-(no v6 panel reordered or hidden). Fields, in display order:
+`.fpd-panel-sash-workshop` sub-panel; r7 removes both. No v6 panel is reordered; since
+r8 the host may hide some for eligible elements (`hideTools`). Fields, in display order:
 
 | selector | control | notes |
 |---|---|---|
@@ -627,13 +640,22 @@ of the control. r4..r6 used a "Workshop" nav tab (`data-panel="sash-workshop"`) 
 | `[data-sash-field="price"]` | `<input type="text" inputmode="decimal">` captioned "Price" (right) | text, so `$15`/`abc` reach the host's parser |
 
 Remaining layout difference from legacy (accepted): legacy set the embroidery colour and
-stroke from its fill-colour swatch and stroke ("A") sub-panels. v6 has no equivalent
-panels that write `sash_color`/`sash_stroke`, so r7 shows them as two compact captioned
-selects ("Emb Color", "Stroke") in the body section between the font select and Notes.
-Also: while a v6 sub-panel (Color, Transform, ...) is open, the smart toolbar hides its
-whole nav, and the body section with it; "Back" shows it again. The section is styled for
-the smart (floating) toolbar placement only, which is what com_sash uses; the sidebar
-placement would stack it in the 80px nav column.
+stroke from its fill-colour swatch and stroke ("A") sub-panels. v6 does have Color (with
+Stroke and Shadow tabs) and Font Family panels, but they write `fill`/`stroke`/
+`fontFamily` only, bypassing `sash_color`/`sash_stroke`/`sash_font`; com_sash hides them
+for workshop elements (`hideTools`), and the section shows the embroidery colour and
+stroke as two compact captioned selects ("Emb Color", "Stroke") between the font select
+and Notes.
+
+Sub-panels (r8): while a v6 sub-panel (Transform, Position, Format, ...) is open, the smart
+toolbar hides its nav (upstream) but the section stays visible below the sub-panel, as
+legacy's popover sub-panels left Notes/Price on screen (benchmark `08-text-transform.png`).
+The smart toolbar lays its children out as a column for this (only one of nav/sub-panel is
+displayed at a time, so without the section nothing else moves), and pins the × / Back
+tabs `position: absolute` at the left edge: com_sash's legacy stylesheet
+(`.fpd-container > div { position: relative }`, same specificity, loaded later) otherwise
+puts them in flow. The section is styled for the smart (floating) toolbar placement only,
+which is what com_sash uses; in the sidebar placement it would be an unstyled third column.
 
 **Event**: on a field's `change`, the fork dispatches on the FPD instance
 
@@ -661,5 +683,6 @@ Host-owned nodes: the host may insert its own nodes inside the section. (com_sas
 longer does: since its Task 9 an unparseable price is reported with legacy's plain
 `alert('Please enter a number')`, not an inline message.)
 
-Styles: `src/ui/less/layout/element-toolbar.less` (end of file: the section block, plus a
-`flex-wrap` rule so image elements, whose v6 nav is a row, put it on its own line).
+Styles: `src/ui/less/layout/element-toolbar.less` (end of file: the smart-toolbar column
+rule and × / Back pinning, then the section block). r7's image-only `flex-wrap` rule on the
+nav is gone: the section is no longer inside the nav.

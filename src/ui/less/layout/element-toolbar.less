@@ -691,7 +691,32 @@ body[data-fpd-industry-type="engraving"]:not(.fpd-editor-mode)  {
 // like legacy's v3 toolbar (06-toolbar-text.png): full-width embroidery font select, then
 // the embroidery colour/stroke selects, then Notes and Price with their captions to the
 // right of the control. See SASH-NOTES.md §9.
-fpd-element-toolbar.fpd-smart > .fpd-tools-nav > div.fpd-sash-workshop {
+// Since r8 the section is a sibling AFTER .fpd-tools-nav and .fpd-sub-panel, so it stays
+// visible whichever of the two is showing (legacy's sub-panels were popovers that left
+// Notes/Price on screen, 08-text-transform.png). The smart toolbar stacks its children
+// as a column; only one of nav / sub-panel is ever displayed, so without the section the
+// layout is unchanged.
+fpd-element-toolbar.fpd-smart {
+    flex-direction: column;
+
+    > .fpd-sub-panel {
+        flex: 0 0 auto;
+    }
+
+    // The close (x) and Back tabs are meant to be absolute (see the top of this file), but
+    // com_sash's legacy stylesheet has `.fpd-container > div { position: relative }` at the
+    // same specificity, loaded later, which put them in flow. In the old row layout that
+    // cost a 35px column on the left (where the tabs showed); in this column layout it
+    // would add 30px of height. Pin them absolute, at the left edge where they showed.
+    > .fpd-close,
+    > .fpd-close-sub-panel {
+        position: absolute;
+        left: 0;
+        right: auto;
+    }
+}
+
+fpd-element-toolbar.fpd-smart > div.fpd-sash-workshop {
     display: flex;
     flex-flow: row wrap;
     align-items: flex-end;
@@ -748,17 +773,5 @@ fpd-element-toolbar.fpd-smart > .fpd-tools-nav > div.fpd-sash-workshop {
     > .fpd-sash-price input {
         flex: 0 0 60px;
         width: 60px;
-    }
-}
-
-// Image elements lay the v6 nav out as a row; wrap so the workshop section takes its own
-// full-width line below the tools instead of becoming a third column.
-fpd-element-toolbar.fpd-smart[data-element-type="image"] > .fpd-tools-nav {
-    flex-wrap: wrap;
-
-    > div.fpd-sash-workshop {
-        flex: 1 0 100%;
-        margin: 0;
-        overflow: visible;
     }
 }

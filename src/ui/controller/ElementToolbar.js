@@ -444,7 +444,7 @@ export default class ElementToolbar extends EventTarget {
 		});
 
 		//sash fork: workshop fields (toolbar body) only report changes; the host applies them
-		const sashWorkshop = this.navElem.querySelector(".fpd-sash-workshop");
+		const sashWorkshop = this.container.querySelector(".fpd-sash-workshop");
 		if (sashWorkshop) {
 			sashWorkshop.querySelectorAll("[data-sash-field]").forEach((field) => {
 				addEvents(field, "change", () => this.#emitSashWorkshopChange(field));
@@ -872,6 +872,13 @@ export default class ElementToolbar extends EventTarget {
 		const wsOpts = this.fpdInstance.mainOptions.sashWorkshop;
 		const wsEligible = Boolean(wsOpts && typeof wsOpts.isEligible === "function" && wsOpts.isEligible(element));
 		this.#toggleSashWorkshop(element, wsOpts, wsEligible);
+		//hideTools: v6 nav items the host replaces with its own fields (com_sash: the v6 Font
+		//Family and Color panels, which bypass sash_font/sash_color). #reset() re-hid every
+		//nav item above and the checks re-showed the applicable ones, so a non-eligible
+		//element gets them back without any restore step here.
+		if (wsEligible && Array.isArray(wsOpts.hideTools)) {
+			wsOpts.hideTools.forEach((tool) => this.#toggleNavItem(tool, false));
+		}
 
 		//select first visible nav item
 		if (this.currentPlacement == "sidebar") {
@@ -902,7 +909,7 @@ export default class ElementToolbar extends EventTarget {
 	}
 
 	#toggleSashWorkshop(element, wsOpts, eligible) {
-		const ws = this.navElem.querySelector(".fpd-sash-workshop");
+		const ws = this.container.querySelector(".fpd-sash-workshop");
 		if (!ws) return;
 		//a field still focused may hold an uncommitted edit for the PREVIOUS element; the
 		//refill below would overwrite it before its native blur, and hiding the section
