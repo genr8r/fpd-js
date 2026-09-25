@@ -588,7 +588,7 @@ export default class ElementToolbar extends EventTarget {
 	}
 
 	#hasToolbar(elem) {
-		return elem && !elem._ignore && !elem.uploadZone;
+		return this.fpdInstance.mainOptions.elementToolbar !== false && elem && !elem._ignore && !elem.uploadZone;
 	}
 
 	#update(element) {

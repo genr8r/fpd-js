@@ -330,6 +330,15 @@ export default class Options {
 		 */
 		toolbarPlacement: "smart",
 		/**
+		 * Show the element toolbar when an element is selected. Set to false to never show it (e.g. a read-only/locked designer).
+		 *
+		 * @property elementToolbar
+		 * @memberof Options.defaults
+		 * @type {Boolean}
+		 * @default true
+		 */
+		elementToolbar: true,
+		/**
 		 * The grid size for snap action. First value defines the width on the a-axis, the second on the y-axis.
 		 *
 		 * @property snapGridSize
