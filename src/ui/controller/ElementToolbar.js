@@ -905,11 +905,20 @@ export default class ElementToolbar extends EventTarget {
 	#fillSashWorkshop(element, wsOpts) {
 		const ws = this.subPanel.querySelector(".fpd-panel-sash-workshop");
 		if (!ws) return;
-		//a field still focused holds an uncommitted edit for the PREVIOUS element; the
-		//refill below would overwrite it before its blur, so commit it first
-		const pending = ws.contains(document.activeElement) && document.activeElement.dataset.sashField;
-		if (pending && this.#sashWorkshopElement && this.#sashWorkshopElement !== element) {
-			this.#emitSashWorkshopChange(document.activeElement);
+		//a field still focused may hold an uncommitted edit for the PREVIOUS element; the
+		//refill below would overwrite it before its native blur. Blur it now, while
+		//#sashWorkshopElement still names that element: the browser then fires its own
+		//change (only if the value really changed) exactly once, and no second native
+		//change follows the refill.
+		const focused = document.activeElement;
+		if (
+			focused &&
+			ws.contains(focused) &&
+			focused.dataset.sashField &&
+			this.#sashWorkshopElement &&
+			this.#sashWorkshopElement !== element
+		) {
+			focused.blur();
 		}
 		this.#sashWorkshopElement = element;
 		const vals = (typeof wsOpts.read === "function" && wsOpts.read(element)) || {};

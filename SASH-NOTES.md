@@ -585,7 +585,7 @@ round-trip bug.
   single combined task wires these two pipelines together yet — a future
   improvement would be a `dist-sash` gulp target, out of scope for Task 2).
 
-## 9. Sash workshop toolbar panel (tags `sash-6.3.5-r4`, `sash-6.3.5-r5`)
+## 9. Sash workshop toolbar panel (tags `sash-6.3.5-r4` .. `sash-6.3.5-r6`)
 
 Legacy (engine7/v3) staff edited a staff-added element's Notes, Price and embroidery
 colour/font/stroke from the floating element toolbar. v6's toolbar has no slot for
@@ -636,8 +636,10 @@ where `field` is one of `notes | price | sash_color | sash_font | sash_stroke` a
 (r5). A text field only blurs, and so fires `change`, after the canvas mousedown that
 selected another element (or cleared the selection) has already run, so
 `currentElement` would name the wrong element. If a new eligible element is selected
-while a field still has focus, the fork first emits that field's pending change for the
-previous element, then refills the fields. Hosts should still re-check eligibility on
+while a field still has focus, the fork blurs that field BEFORE refilling (r6), so the
+browser's own `change` fires once, only if the value changed, and for the previous
+element; no second native `change` follows the refill (r5 emitted explicitly and the
+later native blur re-sent the refilled value for the new element). Hosts should still re-check eligibility on
 receipt (the element may have been removed meanwhile).
 
 Host-owned nodes: the host may insert its own nodes inside the panel. com_sash inserts
