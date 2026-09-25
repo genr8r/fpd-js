@@ -21,6 +21,8 @@ import Snackbar from "../view/comps/Snackbar";
 export default class ElementToolbar extends EventTarget {
 	currentPlacement = "";
 	#colorWrapper;
+	//sash fork: the element the workshop fields were last filled for
+	#sashWorkshopElement = null;
 
 	constructor(fpdInstance) {
 		super();
@@ -445,15 +447,7 @@ export default class ElementToolbar extends EventTarget {
 		const sashWorkshop = this.subPanel.querySelector(".fpd-panel-sash-workshop");
 		if (sashWorkshop) {
 			sashWorkshop.querySelectorAll("[data-sash-field]").forEach((field) => {
-				addEvents(field, "change", () => {
-					const element = fpdInstance.currentElement;
-					if (!element) return;
-					fpdInstance.dispatchEvent(
-						new CustomEvent("sashWorkshopChange", {
-							detail: { element, field: field.dataset.sashField, value: field.value },
-						})
-					);
-				});
+				addEvents(field, "change", () => this.#emitSashWorkshopChange(field));
 			});
 		}
 
@@ -896,9 +890,28 @@ export default class ElementToolbar extends EventTarget {
 		this.container.dataset.elementType = element.getType();
 	}
 
+	//not fpdInstance.currentElement: a field blurs (and fires change) only after a
+	//canvas mousedown has already moved or cleared the selection
+	#emitSashWorkshopChange(field) {
+		const element = this.#sashWorkshopElement;
+		if (!element) return;
+		this.fpdInstance.dispatchEvent(
+			new CustomEvent("sashWorkshopChange", {
+				detail: { element, field: field.dataset.sashField, value: field.value },
+			})
+		);
+	}
+
 	#fillSashWorkshop(element, wsOpts) {
 		const ws = this.subPanel.querySelector(".fpd-panel-sash-workshop");
 		if (!ws) return;
+		//a field still focused holds an uncommitted edit for the PREVIOUS element; the
+		//refill below would overwrite it before its blur, so commit it first
+		const pending = ws.contains(document.activeElement) && document.activeElement.dataset.sashField;
+		if (pending && this.#sashWorkshopElement && this.#sashWorkshopElement !== element) {
+			this.#emitSashWorkshopChange(document.activeElement);
+		}
+		this.#sashWorkshopElement = element;
 		const vals = (typeof wsOpts.read === "function" && wsOpts.read(element)) || {};
 		const colors = Array.isArray(wsOpts.colors) ? wsOpts.colors : [];
 		const fonts = Array.isArray(wsOpts.fonts) ? wsOpts.fonts : [];

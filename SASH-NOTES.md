@@ -585,7 +585,7 @@ round-trip bug.
   single combined task wires these two pipelines together yet — a future
   improvement would be a `dist-sash` gulp target, out of scope for Task 2).
 
-## 9. Sash workshop toolbar panel (tag `sash-6.3.5-r4`)
+## 9. Sash workshop toolbar panel (tags `sash-6.3.5-r4`, `sash-6.3.5-r5`)
 
 Legacy (engine7/v3) staff edited a staff-added element's Notes, Price and embroidery
 colour/font/stroke from the floating element toolbar. v6's toolbar has no slot for
@@ -607,7 +607,8 @@ sashWorkshop: {
 Unset (the default) = the panel never shows; upstream behaviour is unchanged.
 
 **Markup** (`src/ui/html/element-toolbar.html`): nav item
-`<div class="fpd-tool-sash-workshop fpd-hidden" data-panel="sash-workshop">` (icon
+`<div class="fpd-tool-sash-workshop fpd-hidden" data-panel="sash-workshop">`, the FIRST
+item of `.fpd-primary-tools` since r5 so staff never scroll the nav to reach Price (icon
 `fpd-icon-more`, an existing FontFPD glyph) and sub-panel `.fpd-panel-sash-workshop`
 (the same `fpd-panel-<name>` convention the nav click handler uses to open every
 sub-panel). The nav item is visible iff `mainOptions.sashWorkshop &&
@@ -627,8 +628,20 @@ mainOptions.sashWorkshop.isEligible(element)`. Fields:
 new CustomEvent('sashWorkshopChange', { detail: { element, field, value } })
 ```
 
-where `field` is one of `notes | price | sash_color | sash_font | sash_stroke`,
-`element` is `fpd.currentElement`, and `value` is the control's string value. The host
-applies the value (com_sash: `sash-admin.js` `onWorkshopChange`).
+where `field` is one of `notes | price | sash_color | sash_font | sash_stroke` and
+`value` is the control's string value. The host applies the value (com_sash:
+`sash-admin.js` `onWorkshopChange`).
+
+`element` is the element the fields were last FILLED for, not `fpd.currentElement`
+(r5). A text field only blurs, and so fires `change`, after the canvas mousedown that
+selected another element (or cleared the selection) has already run, so
+`currentElement` would name the wrong element. If a new eligible element is selected
+while a field still has focus, the fork first emits that field's pending change for the
+previous element, then refills the fields. Hosts should still re-check eligibility on
+receipt (the element may have been removed meanwhile).
+
+Host-owned nodes: the host may insert its own nodes inside the panel. com_sash inserts
+a `.sash-admin-price-error` message after the Price input on an unparseable price and
+removes it on the next valid price or when another element is selected.
 
 Styles: `src/ui/less/layout/element-toolbar.less` (end of file, one block).
